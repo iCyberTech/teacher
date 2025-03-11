@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teacher Website</title>
+</head>
+<body>
+  <h1>Add Student Data</h1>
+  <form id="studentForm">
+    <input type="text" id="name" placeholder="Student Name" required>
+    <input type="text" id="grade" placeholder="Grade" required>
+    <input type="number" id="attendance" placeholder="Attendance" required>
+    <input type="number" id="marks" placeholder="Marks" required>
+    <button type="submit">Submit</button>
+  </form>
+
+  
+    // Include the Firebase SDK code here (as shown above)
+    <script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-analytics.js";
+  import { getFirestore, collection, addDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+
+  // Your web app's Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyBxORm1Up_vSQHnT5WVTqP9I7HKWKsBBm4",
+    authDomain: "school-mangement-8ca60.firebaseapp.com",
+    projectId: "school-mangement-8ca60",
+    storageBucket: "school-mangement-8ca60.firebasestorage.app",
+    messagingSenderId: "313997383681",
+    appId: "1:313997383681:web:7b1e55f6c036120c5fc800",
+    measurementId: "G-P3JST7V88B"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const db = getFirestore(app); // Initialize Firestore
+
+    // Add student data to Firestore
+    const studentForm = document.getElementById('studentForm');
+    studentForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById('name').value;
+      const grade = document.getElementById('grade').value;
+      const attendance = document.getElementById('attendance').value;
+      const marks = document.getElementById('marks').value;
+
+      try {
+        const docRef = await addDoc(collection(db, 'students'), {
+          name: name,
+          grade: grade,
+          attendance: attendance,
+          marks: marks
+        });
+        alert('Student data added with ID: ' + docRef.id);
+        studentForm.reset(); // Clear the form
+      } catch (error) {
+        console.error('Error adding student: ', error);
+        alert('Error adding student. Please try again.');
+      }
+    });
+  </script>
+</body>
+</html>
