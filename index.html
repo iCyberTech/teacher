@@ -4,32 +4,56 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teacher Website</title>
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <h1>Add/Update Student Data</h1>
-  <form id="studentForm">
-    <input type="text" id="name" placeholder="Student Name" required>
-    <input type="text" id="grade" placeholder="Grade" required>
-    <input type="number" id="attendance" placeholder="Attendance" required>
-    <input type="number" id="marks" placeholder="Marks" required>
-    <input type="text" id="semester" placeholder="Semester" required>
-    <div id="courses">
-      <h3>Courses</h3>
-      <div class="course">
-        <input type="text" class="courseName" placeholder="Course Name" required>
-        <input type="number" class="courseScore" placeholder="Score" required>
-        <input type="number" class="courseGPA" placeholder="GPA" required>
-        <input type="text" class="courseRemark" placeholder="Remark" required>
+  <h1>Teacher Dashboard</h1>
+  <button onclick="fetchAllStudents()">Load All Students</button>
+  <div id="studentsList"></div>
+
+  <div id="studentFormContainer" class="hidden">
+    <h2>Add/Update Student Data</h2>
+    <form id="studentForm">
+      <input type="text" id="name" placeholder="Student Name" required>
+      <input type="text" id="grade" placeholder="Grade" required>
+      <input type="number" id="attendance" placeholder="Attendance" required>
+      <input type="number" id="marks" placeholder="Marks" required>
+      <input type="text" id="semester" placeholder="Semester" required>
+      <div id="courses">
+        <h3>Courses</h3>
+        <div class="course">
+          <input type="text" class="courseName" placeholder="Course Name" required>
+          <input type="number" class="courseScore" placeholder="Score" required>
+          <input type="number" class="courseGPA" placeholder="GPA" required>
+          <input type="text" class="courseRemark" placeholder="Remark" required>
+        </div>
       </div>
-    </div>
-    <button type="button" onclick="addCourse()">Add Another Course</button>
-    <button type="submit">Submit</button>
-  </form>
+      <button type="button" onclick="addCourse()">Add Another Course</button>
+      <button type="submit">Save Student Data</button>
+    </form>
+  </div>
 
   <script type="module">
     // Import Firebase SDK
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, doc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 
     // Your Firebase configuration
     const firebaseConfig = {
@@ -45,6 +69,95 @@
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+
+    // Function to fetch all students
+    window.fetchAllStudents = async function () {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'students'));
+        const studentsListDiv = document.getElementById('studentsList');
+        studentsListDiv.innerHTML = '<h2>Students List</h2>';
+
+        if (querySnapshot.empty) {
+          studentsListDiv.innerHTML += '<p>No students found.</p>';
+          return;
+        }
+
+        let tableHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Grade</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        querySnapshot.forEach((doc) => {
+          const studentData = doc.data();
+          tableHTML += `
+            <tr>
+              <td>${studentData.name}</td>
+              <td>${studentData.grade}</td>
+              <td><button onclick="loadStudentData('${doc.id}')">Edit</button></td>
+            </tr>
+          `;
+        });
+
+        tableHTML += `
+            </tbody>
+          </table>
+        `;
+
+        studentsListDiv.innerHTML += tableHTML;
+      } catch (error) {
+        console.error('Error fetching students: ', error);
+        alert('Error fetching students. Please try again.');
+      }
+    };
+
+    // Function to load student data for editing
+    window.loadStudentData = async function (studentId) {
+      try {
+        const studentDoc = await getDoc(doc(db, 'students', studentId));
+        if (studentDoc.exists()) {
+          const studentData = studentDoc.data();
+
+          // Populate the form
+          document.getElementById('name').value = studentData.name;
+          document.getElementById('grade').value = studentData.grade;
+          document.getElementById('attendance').value = studentData.attendance;
+          document.getElementById('marks').value = studentData.marks;
+          document.getElementById('semester').value = studentData.semester;
+
+          // Clear existing course fields
+          const coursesDiv = document.getElementById('courses');
+          coursesDiv.innerHTML = '<h3>Courses</h3>';
+
+          // Add course fields
+          studentData.courses.forEach(course => {
+            const newCourse = document.createElement('div');
+            newCourse.className = 'course';
+            newCourse.innerHTML = `
+              <input type="text" class="courseName" placeholder="Course Name" value="${course.name}" required>
+              <input type="number" class="courseScore" placeholder="Score" value="${course.score}" required>
+              <input type="number" class="courseGPA" placeholder="GPA" value="${course.gpa}" required>
+              <input type="text" class="courseRemark" placeholder="Remark" value="${course.remark}" required>
+            `;
+            coursesDiv.appendChild(newCourse);
+          });
+
+          // Show the form
+          document.getElementById('studentFormContainer').classList.remove('hidden');
+        } else {
+          alert('Student not found.');
+        }
+      } catch (error) {
+        console.error('Error loading student data: ', error);
+        alert('Error loading student data. Please try again.');
+      }
+    };
 
     // Function to add a new course field
     window.addCourse = function () {
@@ -99,7 +212,7 @@
 
       try {
         // Add or update student data
-        const studentId = prompt('Enter Student ID (leave blank to auto-generate):');
+        const studentId = prompt('Enter Student ID (leave blank to add a new student):');
         if (studentId) {
           await setDoc(doc(db, 'students', studentId), studentData);
           alert('Student data updated successfully!');
