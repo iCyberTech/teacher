@@ -5,6 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teacher Website</title>
   <style>
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .group-button {
+      padding: 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-align: center;
+    }
+    .group-button:hover {
+      background-color: #45a049;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -30,7 +48,7 @@
   <button onclick="fetchAllStudents()">Load All Students</button>
   <button onclick="fetchAllGroups()">Load All Groups</button>
   <div id="studentsList"></div>
-  <div id="groupsList"></div>
+  <div id="groupsGrid" class="grid"></div>
 
   <h2>Add/Update Student Data</h2>
   <form id="studentForm">
@@ -128,50 +146,103 @@
       }
     };
 
-    // Function to fetch all groups
+    // Function to fetch all groups and display them as grid buttons
     window.fetchAllGroups = async function () {
       try {
         const querySnapshot = await getDocs(collection(db, 'groups'));
-        const groupsListDiv = document.getElementById('groupsList');
-        groupsListDiv.innerHTML = '<h2>Groups List</h2>';
+        const groupsGridDiv = document.getElementById('groupsGrid');
+        groupsGridDiv.innerHTML = '';
 
         if (querySnapshot.empty) {
-          groupsListDiv.innerHTML += '<p>No groups found.</p>';
+          groupsGridDiv.innerHTML = '<p>No groups found.</p>';
           return;
         }
 
-        let tableHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>Group Name</th>
-                <th>Students</th>
-              </tr>
-            </thead>
-            <tbody>
-        `;
-
         querySnapshot.forEach((doc) => {
           const groupData = doc.data();
-          tableHTML += `
-            <tr>
-              <td>${groupData.name}</td>
-              <td>${groupData.students ? groupData.students.join(', ') : 'No students'}</td>
-            </tr>
-          `;
+          const groupName = groupData.name;
+
+          // Create a group button
+          const groupButton = document.createElement('button');
+          groupButton.className = 'group-button';
+          groupButton.textContent = groupName;
+          groupButton.onclick = () => openGroupStudentsWindow(groupName);
+          groupsGridDiv.appendChild(groupButton);
         });
-
-        tableHTML += `
-            </tbody>
-          </table>
-        `;
-
-        groupsListDiv.innerHTML += tableHTML;
       } catch (error) {
         console.error('Error fetching groups: ', error);
         alert('Error fetching groups. Please try again.');
       }
     };
+
+    // Function to open a new window with the list of students in a group
+    async function openGroupStudentsWindow(groupName) {
+      const groupDoc = await getDoc(doc(db, 'groups', groupName));
+      if (!groupDoc.exists()) {
+        alert('Group not found.');
+        return;
+      }
+
+      const groupData = groupDoc.data();
+      const studentIds = groupData.students || [];
+
+      // Fetch student details
+      const studentsSnapshot = await getDocs(collection(db, 'students'));
+      const studentsInGroup = studentsSnapshot.docs
+        .filter(doc => studentIds.includes(doc.id))
+        .map(doc => doc.data());
+
+      // Open a new window
+      const newWindow = window.open('', '_blank');
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>${groupName} Students</title>
+            <style>
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+              }
+              th, td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+              }
+              th {
+                background-color: #f2f2f2;
+              }
+            </style>
+          </head>
+          <body>
+            <h1>${groupName} Students</h1>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Grade</th>
+                  <th>Attendance</th>
+                  <th>Marks</th>
+                  <th>Semester</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${studentsInGroup.map(student => `
+                  <tr>
+                    <td>${student.name}</td>
+                    <td>${student.grade}</td>
+                    <td>${student.attendance}</td>
+                    <td>${student.marks}</td>
+                    <td>${student.semester}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    }
 
     // Function to add a student to a group
     window.addStudentToGroup = async function (studentId) {
