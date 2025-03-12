@@ -49,6 +49,7 @@
   <button onclick="fetchAllGroups()">Load All Groups</button>
   <div id="studentsList"></div>
   <div id="groupsGrid" class="grid"></div>
+  <div id="groupStudentsList"></div>
 
   <h2>Add/Update Student Data</h2>
   <form id="studentForm">
@@ -166,7 +167,7 @@
           const groupButton = document.createElement('button');
           groupButton.className = 'group-button';
           groupButton.textContent = groupName;
-          groupButton.onclick = () => openGroupStudentsWindow(groupName);
+          groupButton.onclick = () => loadGroupStudents(groupName);
           groupsGridDiv.appendChild(groupButton);
         });
       } catch (error) {
@@ -175,73 +176,64 @@
       }
     };
 
-    // Function to open a new window with the list of students in a group
-    async function openGroupStudentsWindow(groupName) {
-      const groupDoc = await getDoc(doc(db, 'groups', groupName));
-      if (!groupDoc.exists()) {
-        alert('Group not found.');
-        return;
+    // Function to load students in a group and display them on the same page
+    async function loadGroupStudents(groupName) {
+      const groupStudentsListDiv = document.getElementById('groupStudentsList');
+      groupStudentsListDiv.innerHTML = `<h2>Students in ${groupName}</h2>`;
+
+      try {
+        const groupDoc = await getDoc(doc(db, 'groups', groupName));
+        if (!groupDoc.exists()) {
+          groupStudentsListDiv.innerHTML += '<p>Group not found.</p>';
+          return;
+        }
+
+        const groupData = groupDoc.data();
+        const studentIds = groupData.students || [];
+
+        // Fetch student details
+        const studentsSnapshot = await getDocs(collection(db, 'students'));
+        const studentsInGroup = studentsSnapshot.docs
+          .filter(doc => studentIds.includes(doc.id))
+          .map(doc => doc.data());
+
+        // Display students in a table
+        let tableHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Grade</th>
+                <th>Attendance</th>
+                <th>Marks</th>
+                <th>Semester</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        studentsInGroup.forEach(student => {
+          tableHTML += `
+            <tr>
+              <td>${student.name}</td>
+              <td>${student.grade}</td>
+              <td>${student.attendance}</td>
+              <td>${student.marks}</td>
+              <td>${student.semester}</td>
+            </tr>
+          `;
+        });
+
+        tableHTML += `
+            </tbody>
+          </table>
+        `;
+
+        groupStudentsListDiv.innerHTML += tableHTML;
+      } catch (error) {
+        console.error('Error loading group students: ', error);
+        alert('Error loading group students. Please try again.');
       }
-
-      const groupData = groupDoc.data();
-      const studentIds = groupData.students || [];
-
-      // Fetch student details
-      const studentsSnapshot = await getDocs(collection(db, 'students'));
-      const studentsInGroup = studentsSnapshot.docs
-        .filter(doc => studentIds.includes(doc.id))
-        .map(doc => doc.data());
-
-      // Open a new window
-      const newWindow = window.open('', '_blank');
-      newWindow.document.write(`
-        <html>
-          <head>
-            <title>${groupName} Students</title>
-            <style>
-              table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 20px;
-              }
-              th, td {
-                border: 1px solid #ddd;
-                padding: 8px;
-                text-align: left;
-              }
-              th {
-                background-color: #f2f2f2;
-              }
-            </style>
-          </head>
-          <body>
-            <h1>${groupName} Students</h1>
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Grade</th>
-                  <th>Attendance</th>
-                  <th>Marks</th>
-                  <th>Semester</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${studentsInGroup.map(student => `
-                  <tr>
-                    <td>${student.name}</td>
-                    <td>${student.grade}</td>
-                    <td>${student.attendance}</td>
-                    <td>${student.marks}</td>
-                    <td>${student.semester}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `);
-      newWindow.document.close();
     }
 
     // Function to add a student to a group
