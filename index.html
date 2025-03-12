@@ -42,18 +42,10 @@
   <button onclick="fetchAllGroups()">Load All Groups</button>
   <div id="groupsGrid" class="grid"></div>
 
-  <div id="groupFormContainer" class="hidden">
-    <h2>Create/Edit Group</h2>
-    <form id="groupForm">
-      <input type="text" id="groupName" placeholder="Group Name" required>
-      <button type="submit">Save Group</button>
-    </form>
-  </div>
-
   <script type="module">
     // Import Firebase SDK
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, doc, setDoc, getDocs, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 
     // Your Firebase configuration
     const firebaseConfig = {
@@ -73,7 +65,10 @@
     // Function to fetch all groups and display them in a grid
     window.fetchAllGroups = async function () {
       try {
+        console.log('Fetching groups...'); // Debugging
         const querySnapshot = await getDocs(collection(db, 'groups'));
+        console.log('Groups fetched:', querySnapshot.docs.length); // Debugging
+
         const groupsGridDiv = document.getElementById('groupsGrid');
         groupsGridDiv.innerHTML = '';
 
@@ -84,9 +79,9 @@
 
         querySnapshot.forEach((groupDoc) => {
           const groupData = groupDoc.data();
-          const groupId = groupDoc.id;
+          console.log('Group data:', groupData); // Debugging
 
-          // Create a group card
+          const groupId = groupDoc.id;
           const groupCard = document.createElement('div');
           groupCard.className = 'group';
           groupCard.innerHTML = `
@@ -104,10 +99,7 @@
             <button onclick="openRemoveStudentsModal('${groupId}')">Remove Students</button>
           `;
 
-          // Append the group card to the grid
           groupsGridDiv.appendChild(groupCard);
-
-          // Load students for this group
           loadStudentsForGroup(groupId, groupData.students || []);
         });
       } catch (error) {
@@ -127,10 +119,15 @@
       }
 
       try {
+        console.log('Fetching students for group:', groupId); // Debugging
         const studentsSnapshot = await getDocs(collection(db, 'students'));
+        console.log('Students fetched:', studentsSnapshot.docs.length); // Debugging
+
         studentsSnapshot.forEach((studentDoc) => {
           if (studentIds.includes(studentDoc.id)) {
             const studentData = studentDoc.data();
+            console.log('Student data:', studentData); // Debugging
+
             studentsTbody.innerHTML += `
               <tr>
                 <td>${studentData.name}</td>
