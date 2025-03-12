@@ -28,7 +28,9 @@
 <body>
   <h1>Teacher Dashboard</h1>
   <button onclick="fetchAllStudents()">Load All Students</button>
+  <button onclick="fetchAllGroups()">Load All Groups</button>
   <div id="studentsList"></div>
+  <div id="groupsList"></div>
 
   <h2>Add/Update Student Data</h2>
   <form id="studentForm">
@@ -53,7 +55,7 @@
   <script type="module">
     // Import Firebase SDK
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, doc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, doc, setDoc, getDocs, updateDoc, arrayUnion, arrayRemove, getDoc } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 
     // Your Firebase configuration
     const firebaseConfig = {
@@ -91,6 +93,7 @@
                 <th>Attendance</th>
                 <th>Marks</th>
                 <th>Semester</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -105,6 +108,10 @@
               <td>${studentData.attendance}</td>
               <td>${studentData.marks}</td>
               <td>${studentData.semester}</td>
+              <td>
+                <button onclick="addStudentToGroup('${doc.id}')">Add to Group</button>
+                <button onclick="removeStudentFromGroup('${doc.id}')">Remove from Group</button>
+              </td>
             </tr>
           `;
         });
@@ -118,6 +125,98 @@
       } catch (error) {
         console.error('Error fetching students: ', error);
         alert('Error fetching students. Please try again.');
+      }
+    };
+
+    // Function to fetch all groups
+    window.fetchAllGroups = async function () {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'groups'));
+        const groupsListDiv = document.getElementById('groupsList');
+        groupsListDiv.innerHTML = '<h2>Groups List</h2>';
+
+        if (querySnapshot.empty) {
+          groupsListDiv.innerHTML += '<p>No groups found.</p>';
+          return;
+        }
+
+        let tableHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Group Name</th>
+                <th>Students</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        querySnapshot.forEach((doc) => {
+          const groupData = doc.data();
+          tableHTML += `
+            <tr>
+              <td>${groupData.name}</td>
+              <td>${groupData.students ? groupData.students.join(', ') : 'No students'}</td>
+            </tr>
+          `;
+        });
+
+        tableHTML += `
+            </tbody>
+          </table>
+        `;
+
+        groupsListDiv.innerHTML += tableHTML;
+      } catch (error) {
+        console.error('Error fetching groups: ', error);
+        alert('Error fetching groups. Please try again.');
+      }
+    };
+
+    // Function to add a student to a group
+    window.addStudentToGroup = async function (studentId) {
+      const groupName = prompt('Enter the group name to add the student to:');
+      if (!groupName) return;
+
+      try {
+        const groupRef = doc(db, 'groups', groupName);
+        const groupDoc = await getDoc(groupRef);
+
+        // If the group doesn't exist, create it
+        if (!groupDoc.exists()) {
+          await setDoc(groupRef, {
+            name: groupName,
+            students: [] // Initialize with an empty array
+          });
+        }
+
+        // Add the student to the group
+        await updateDoc(groupRef, {
+          students: arrayUnion(studentId)
+        });
+        alert('Student added to group successfully!');
+        fetchAllGroups(); // Refresh the groups list
+      } catch (error) {
+        console.error('Error adding student to group: ', error);
+        alert('Error adding student to group. Please try again.');
+      }
+    };
+
+    // Function to remove a student from a group
+    window.removeStudentFromGroup = async function (studentId) {
+      const groupName = prompt('Enter the group name to remove the student from:');
+      if (!groupName) return;
+
+      try {
+        const groupRef = doc(db, 'groups', groupName);
+        await updateDoc(groupRef, {
+          students: arrayRemove(studentId)
+        });
+        alert('Student removed from group successfully!');
+        fetchAllGroups(); // Refresh the groups list
+      } catch (error) {
+        console.error('Error removing student from group: ', error);
+        alert('Error removing student from group. Please try again.');
       }
     };
 
