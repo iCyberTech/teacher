@@ -98,8 +98,8 @@
           const studentData = doc.data();
           tableHTML += `
             <tr>
-              <td>${studentData.name}</td>
-              <td>${studentData.grade}</td>
+              <td>${studentData.name || 'N/A'}</td>
+              <td>${studentData.grade || 'N/A'}</td>
               <td><button onclick="loadStudentData('${doc.id}')">Edit</button></td>
             </tr>
           `;
@@ -120,33 +120,41 @@
     // Function to load student data for editing
     window.loadStudentData = async function (studentId) {
       try {
+        console.log('Loading student data for ID:', studentId); // Debugging
         const studentDoc = await getDoc(doc(db, 'students', studentId));
+        console.log('Document data:', studentDoc.data()); // Debugging
+
         if (studentDoc.exists()) {
           const studentData = studentDoc.data();
+          console.log('Student data:', studentData); // Debugging
 
-          // Populate the form
-          document.getElementById('name').value = studentData.name;
-          document.getElementById('grade').value = studentData.grade;
-          document.getElementById('attendance').value = studentData.attendance;
-          document.getElementById('marks').value = studentData.marks;
-          document.getElementById('semester').value = studentData.semester;
+          // Populate the form with default values if fields are missing
+          document.getElementById('name').value = studentData.name || '';
+          document.getElementById('grade').value = studentData.grade || '';
+          document.getElementById('attendance').value = studentData.attendance || '';
+          document.getElementById('marks').value = studentData.marks || '';
+          document.getElementById('semester').value = studentData.semester || '';
 
           // Clear existing course fields
           const coursesDiv = document.getElementById('courses');
           coursesDiv.innerHTML = '<h3>Courses</h3>';
 
-          // Add course fields
-          studentData.courses.forEach(course => {
-            const newCourse = document.createElement('div');
-            newCourse.className = 'course';
-            newCourse.innerHTML = `
-              <input type="text" class="courseName" placeholder="Course Name" value="${course.name}" required>
-              <input type="number" class="courseScore" placeholder="Score" value="${course.score}" required>
-              <input type="number" class="courseGPA" placeholder="GPA" value="${course.gpa}" required>
-              <input type="text" class="courseRemark" placeholder="Remark" value="${course.remark}" required>
-            `;
-            coursesDiv.appendChild(newCourse);
-          });
+          // Add course fields (if courses array exists)
+          if (studentData.courses && Array.isArray(studentData.courses)) {
+            studentData.courses.forEach(course => {
+              const newCourse = document.createElement('div');
+              newCourse.className = 'course';
+              newCourse.innerHTML = `
+                <input type="text" class="courseName" placeholder="Course Name" value="${course.name || ''}" required>
+                <input type="number" class="courseScore" placeholder="Score" value="${course.score || ''}" required>
+                <input type="number" class="courseGPA" placeholder="GPA" value="${course.gpa || ''}" required>
+                <input type="text" class="courseRemark" placeholder="Remark" value="${course.remark || ''}" required>
+              `;
+              coursesDiv.appendChild(newCourse);
+            });
+          } else {
+            console.error('Courses data is missing or invalid.');
+          }
 
           // Show the form
           document.getElementById('studentFormContainer').classList.remove('hidden');
