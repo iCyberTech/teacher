@@ -6,40 +6,61 @@
   <title>Teacher Website</title>
 </head>
 <body>
-  <h1>Add Student Data</h1>
+  <h1>Add/Update Student Data</h1>
   <form id="studentForm">
     <input type="text" id="name" placeholder="Student Name" required>
     <input type="text" id="grade" placeholder="Grade" required>
     <input type="number" id="attendance" placeholder="Attendance" required>
     <input type="number" id="marks" placeholder="Marks" required>
+    <input type="text" id="semester" placeholder="Semester" required>
+    <div id="courses">
+      <h3>Courses</h3>
+      <div class="course">
+        <input type="text" class="courseName" placeholder="Course Name" required>
+        <input type="number" class="courseScore" placeholder="Score" required>
+        <input type="number" class="courseGPA" placeholder="GPA" required>
+        <input type="text" class="courseRemark" placeholder="Remark" required>
+      </div>
+    </div>
+    <button type="button" onclick="addCourse()">Add Another Course</button>
     <button type="submit">Submit</button>
   </form>
 
-  
-    // Include the Firebase SDK code here (as shown above)
-    <script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-analytics.js";
-  import { getFirestore, collection, addDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+  <script type="module">
+    // Import Firebase SDK
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
 
-  // Your web app's Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyBxORm1Up_vSQHnT5WVTqP9I7HKWKsBBm4",
-    authDomain: "school-mangement-8ca60.firebaseapp.com",
-    projectId: "school-mangement-8ca60",
-    storageBucket: "school-mangement-8ca60.firebasestorage.app",
-    messagingSenderId: "313997383681",
-    appId: "1:313997383681:web:7b1e55f6c036120c5fc800",
-    measurementId: "G-P3JST7V88B"
-  };
+    // Your Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBxORm1Up_vSQHnT5WVTqP9I7HKWKsBBm4",
+      authDomain: "school-mangement-8ca60.firebaseapp.com",
+      projectId: "school-mangement-8ca60",
+      storageBucket: "school-mangement-8ca60.firebasestorage.app",
+      messagingSenderId: "313997383681",
+      appId: "1:313997383681:web:7b1e55f6c036120c5fc800",
+      measurementId: "G-P3JST7V88B"
+    };
 
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-  const db = getFirestore(app); // Initialize Firestore
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
-    // Add student data to Firestore
+    // Function to add a new course field
+    window.addCourse = function () {
+      const coursesDiv = document.getElementById('courses');
+      const newCourse = document.createElement('div');
+      newCourse.className = 'course';
+      newCourse.innerHTML = `
+        <input type="text" class="courseName" placeholder="Course Name" required>
+        <input type="number" class="courseScore" placeholder="Score" required>
+        <input type="number" class="courseGPA" placeholder="GPA" required>
+        <input type="text" class="courseRemark" placeholder="Remark" required>
+      `;
+      coursesDiv.appendChild(newCourse);
+    };
+
+    // Submit student data
     const studentForm = document.getElementById('studentForm');
     studentForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -48,19 +69,48 @@
       const grade = document.getElementById('grade').value;
       const attendance = document.getElementById('attendance').value;
       const marks = document.getElementById('marks').value;
+      const semester = document.getElementById('semester').value;
+
+      // Get course data
+      const courses = [];
+      const courseDivs = document.querySelectorAll('.course');
+      courseDivs.forEach(courseDiv => {
+        const courseName = courseDiv.querySelector('.courseName').value;
+        const courseScore = courseDiv.querySelector('.courseScore').value;
+        const courseGPA = courseDiv.querySelector('.courseGPA').value;
+        const courseRemark = courseDiv.querySelector('.courseRemark').value;
+        courses.push({
+          name: courseName,
+          score: parseFloat(courseScore),
+          gpa: parseFloat(courseGPA),
+          remark: courseRemark
+        });
+      });
+
+      // Student data object
+      const studentData = {
+        name,
+        grade,
+        attendance: parseFloat(attendance),
+        marks: parseFloat(marks),
+        semester,
+        courses
+      };
 
       try {
-        const docRef = await addDoc(collection(db, 'students'), {
-          name: name,
-          grade: grade,
-          attendance: attendance,
-          marks: marks
-        });
-        alert('Student data added with ID: ' + docRef.id);
+        // Add or update student data
+        const studentId = prompt('Enter Student ID (leave blank to auto-generate):');
+        if (studentId) {
+          await setDoc(doc(db, 'students', studentId), studentData);
+          alert('Student data updated successfully!');
+        } else {
+          const docRef = await addDoc(collection(db, 'students'), studentData);
+          alert('Student data added with ID: ' + docRef.id);
+        }
         studentForm.reset(); // Clear the form
       } catch (error) {
-        console.error('Error adding student: ', error);
-        alert('Error adding student. Please try again.');
+        console.error('Error adding/updating student: ', error);
+        alert('Error adding/updating student. Please try again.');
       }
     });
   </script>
