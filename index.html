@@ -58,15 +58,24 @@
     .faded {
       opacity: 0.5;
     }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <h1>Teacher Dashboard</h1>
   <button onclick="fetchAllStudents()">Load All Students</button>
   <button onclick="fetchAllGroups()">Load All Groups</button>
+  <button onclick="showFeesSection()">Fees</button>
   <div id="studentsList"></div>
   <div id="groupsGrid" class="grid"></div>
   <div id="groupStudentsList"></div>
+  <div id="feesSection" class="hidden">
+    <h2>Fees Management</h2>
+    <div id="feesGroupsGrid" class="grid"></div>
+    <div id="feesStudentsList"></div>
+  </div>
 
   <h2>Add/Update Student Data</h2>
   <form id="studentForm">
@@ -351,6 +360,157 @@
       } catch (error) {
         console.error('Error restoring student: ', error);
         alert('Error restoring student. Please try again.');
+      }
+    };
+
+    // Function to show the fees section
+    window.showFeesSection = function () {
+      document.getElementById('feesSection').classList.remove('hidden');
+      fetchFeesGroups();
+    };
+
+    // Function to fetch groups for fees management
+    async function fetchFeesGroups() {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'groups'));
+        const feesGroupsGridDiv = document.getElementById('feesGroupsGrid');
+        feesGroupsGridDiv.innerHTML = '';
+
+        if (querySnapshot.empty) {
+          feesGroupsGridDiv.innerHTML = '<p>No groups found.</p>';
+          return;
+        }
+
+        querySnapshot.forEach((doc) => {
+          const groupData = doc.data();
+          const groupName = groupData.name;
+
+          // Create a group button
+          const groupButton = document.createElement('button');
+          groupButton.className = 'group-button';
+          groupButton.textContent = groupName;
+          groupButton.onclick = () => loadFeesStudents(groupName);
+          feesGroupsGridDiv.appendChild(groupButton);
+        });
+      } catch (error) {
+        console.error('Error fetching groups for fees: ', error);
+        alert('Error fetching groups for fees. Please try again.');
+      }
+    }
+
+    // Function to load students in a group for fees management
+    async function loadFeesStudents(groupName) {
+      const feesStudentsListDiv = document.getElementById('feesStudentsList');
+      feesStudentsListDiv.innerHTML = `<h2>Fees for Students in ${groupName}</h2>`;
+
+      try {
+        const groupDoc = await getDoc(doc(db, 'groups', groupName));
+        if (!groupDoc.exists()) {
+          feesStudentsListDiv.innerHTML += '<p>Group not found.</p>';
+          return;
+        }
+
+        const groupData = groupDoc.data();
+        const studentIds = groupData.students || [];
+
+        // Fetch student details
+        const studentsSnapshot = await getDocs(collection(db, 'students'));
+        const studentsInGroup = studentsSnapshot.docs
+          .filter(doc => studentIds.includes(doc.id))
+          .map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Fetch fees data for each student
+        const feesData = await Promise.all(
+          studentsInGroup.map(async (student) => {
+            const feesDoc = await getDoc(doc(db, 'students', student.id, 'fees', 'feesData'));
+            return {
+              ...student,
+              fees: feesDoc.exists() ? feesDoc.data() : { amountPaid: 0, lastPaymentDate: '', debt: 0, status: 'Owing' }
+            };
+          })
+        );
+
+        // Display students in a table with fees data
+        let tableHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Amount Paid</th>
+                <th>Last Payment Date</th>
+                <th>Debt</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        feesData.forEach(student => {
+          tableHTML += `
+            <tr>
+              <td>${student.name}</td>
+              <td><input type="number" id="amountPaid_${student.id}" value="${student.fees.amountPaid}"></td>
+              <td><input type="date" id="lastPaymentDate_${student.id}" value="${student.fees.lastPaymentDate}"></td>
+              <td><input type="number" id="debt_${student.id}" value="${student.fees.debt}"></td>
+              <td>
+                <select id="status_${student.id}">
+                  <option value="Owing" ${student.fees.status === 'Owing' ? 'selected' : ''}>Owing</option>
+                  <option value="Paid" ${student.fees.status === 'Paid' ? 'selected' : ''}>Paid</option>
+                </select>
+              </td>
+            </tr>
+          `;
+        });
+
+        tableHTML += `
+            </tbody>
+          </table>
+          <button onclick="saveFees('${groupName}')">Save Fees</button>
+        `;
+
+        feesStudentsListDiv.innerHTML += tableHTML;
+      } catch (error) {
+        console.error('Error loading fees students: ', error);
+        alert('Error loading fees students. Please try again.');
+      }
+    }
+
+    // Function to save fees data
+    window.saveFees = async function (groupName) {
+      try {
+        const groupDoc = await getDoc(doc(db, 'groups', groupName));
+        if (!groupDoc.exists()) {
+          alert('Group not found.');
+          return;
+        }
+
+        const groupData = groupDoc.data();
+        const studentIds = groupData.students || [];
+
+        // Fetch student details
+        const studentsSnapshot = await getDocs(collection(db, 'students'));
+        const studentsInGroup = studentsSnapshot.docs
+          .filter(doc => studentIds.includes(doc.id))
+          .map(doc => ({ id: doc.id, ...doc.data() }));
+
+        // Save fees data for each student
+        await Promise.all(
+          studentsInGroup.map(async (student) => {
+            const feesData = {
+              amountPaid: parseFloat(document.getElementById(`amountPaid_${student.id}`).value),
+              lastPaymentDate: document.getElementById(`lastPaymentDate_${student.id}`).value,
+              debt: parseFloat(document.getElementById(`debt_${student.id}`).value),
+              status: document.getElementById(`status_${student.id}`).value
+            };
+            await setDoc(doc(db, 'students', student.id, 'fees', 'feesData'), feesData);
+          })
+        );
+
+        alert('Fees data saved successfully!');
+        loadFeesStudents(groupName); // Refresh the fees table
+      } catch (error) {
+        console.error('Error saving fees data: ', error);
+        alert('Error saving fees data. Please try again.');
       }
     };
 
