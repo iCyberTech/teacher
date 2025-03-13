@@ -41,6 +41,23 @@
       padding: 5px 10px;
       cursor: pointer;
     }
+    #studentForm {
+      margin-top: 20px;
+    }
+    #studentForm input, #studentForm select {
+      padding: 10px;
+      margin: 5px;
+      width: 200px;
+    }
+    .avatar-preview {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .faded {
+      opacity: 0.5;
+    }
   </style>
 </head>
 <body>
@@ -54,34 +71,25 @@
   <h2>Add/Update Student Data</h2>
   <form id="studentForm">
     <input type="text" id="name" placeholder="Student Name" required>
-    <input type="text" id="grade" placeholder="Grade" required>
-    <input type="number" id="attendance" placeholder="Attendance" required>
-    <input type="number" id="marks" placeholder="Marks" required>
-    <input type="text" id="semester" placeholder="Semester" required>
-    <div id="courses">
-      <h3>Courses</h3>
-      <div class="course">
-        <input type="text" class="courseName" placeholder="Course Name" required>
-        <input type="number" class="courseScore" placeholder="Score" required>
-        <input type="number" class="courseGPA" placeholder="GPA" required>
-        <input type="text" class="courseRemark" placeholder="Remark" required>
-      </div>
-    </div>
-    <button type="button" onclick="addCourse()">Add Another Course</button>
+    <input type="file" id="avatar" accept="image/*">
+    <select id="groupSelect">
+      <option value="">Select Group</option>
+    </select>
     <button type="submit">Submit</button>
   </form>
 
   <script type="module">
     // Import Firebase SDK
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, doc, setDoc, getDocs, updateDoc, arrayUnion, arrayRemove, getDoc } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, doc, setDoc, getDocs, updateDoc, arrayUnion, arrayRemove, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+    import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-storage.js";
 
     // Your Firebase configuration
     const firebaseConfig = {
       apiKey: "AIzaSyBxORm1Up_vSQHnT5WVTqP9I7HKWKsBBm4",
       authDomain: "school-mangement-8ca60.firebaseapp.com",
       projectId: "school-mangement-8ca60",
-      storageBucket: "school-mangement-8ca60.firebasestorage.app",
+      storageBucket: "school-mangement-8ca60.appspot.com",
       messagingSenderId: "313997383681",
       appId: "1:313997383681:web:7b1e55f6c036120c5fc800",
       measurementId: "G-P3JST7V88B"
@@ -90,6 +98,9 @@
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const storage = getStorage(app);
+
+    let avatarUrl = ''; // Store the avatar URL globally
 
     // Function to fetch all students
     window.fetchAllStudents = async function () {
@@ -107,11 +118,9 @@
           <table>
             <thead>
               <tr>
+                <th>Avatar</th>
                 <th>Name</th>
-                <th>Grade</th>
-                <th>Attendance</th>
-                <th>Marks</th>
-                <th>Semester</th>
+                <th>Group</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -120,16 +129,23 @@
 
         querySnapshot.forEach((doc) => {
           const studentData = doc.data();
+          const isDeleted = studentData.deletedAt && (Date.now() - studentData.deletedAt.toMillis()) < 24 * 60 * 60 * 1000;
+
           tableHTML += `
-            <tr>
-              <td>${studentData.name}</td>
-              <td>${studentData.grade}</td>
-              <td>${studentData.attendance}</td>
-              <td>${studentData.marks}</td>
-              <td>${studentData.semester}</td>
+            <tr id="student_${doc.id}" class="${isDeleted ? 'faded' : ''}">
               <td>
-                <button onclick="addStudentToGroup('${doc.id}')">Add to Group</button>
-                <button onclick="removeStudentFromGroup('${doc.id}')">Remove from Group</button>
+                <img src="${studentData.avatarUrl || 'https://via.placeholder.com/50'}" alt="Avatar" class="avatar-preview">
+              </td>
+              <td>${studentData.name}</td>
+              <td>${studentData.group || 'No Group'}</td>
+              <td>
+                ${isDeleted ? `
+                  <button onclick="restoreStudent('${doc.id}')">Restore</button>
+                ` : `
+                  <button onclick="addStudentToGroup('${doc.id}')">Add to Group</button>
+                  <button onclick="removeStudentFromGroup('${doc.id}')">Remove from Group</button>
+                  <button onclick="deleteStudent('${doc.id}')">Delete</button>
+                `}
               </td>
             </tr>
           `;
@@ -141,6 +157,15 @@
         `;
 
         studentsListDiv.innerHTML += tableHTML;
+
+        // Check for students to delete permanently
+        querySnapshot.forEach(async (doc) => {
+          const studentData = doc.data();
+          if (studentData.deletedAt && (Date.now() - studentData.deletedAt.toMillis()) >= 24 * 60 * 60 * 1000) {
+            await deleteDoc(doc.ref);
+            console.log(`Student ${doc.id} permanently deleted.`);
+          }
+        });
       } catch (error) {
         console.error('Error fetching students: ', error);
         alert('Error fetching students. Please try again.');
@@ -152,7 +177,9 @@
       try {
         const querySnapshot = await getDocs(collection(db, 'groups'));
         const groupsGridDiv = document.getElementById('groupsGrid');
+        const groupSelect = document.getElementById('groupSelect');
         groupsGridDiv.innerHTML = '';
+        groupSelect.innerHTML = '<option value="">Select Group</option>';
 
         if (querySnapshot.empty) {
           groupsGridDiv.innerHTML = '<p>No groups found.</p>';
@@ -169,6 +196,12 @@
           groupButton.textContent = groupName;
           groupButton.onclick = () => loadGroupStudents(groupName);
           groupsGridDiv.appendChild(groupButton);
+
+          // Add group to the dropdown
+          const option = document.createElement('option');
+          option.value = groupName;
+          option.textContent = groupName;
+          groupSelect.appendChild(option);
         });
       } catch (error) {
         console.error('Error fetching groups: ', error);
@@ -202,11 +235,8 @@
           <table>
             <thead>
               <tr>
+                <th>Avatar</th>
                 <th>Name</th>
-                <th>Grade</th>
-                <th>Attendance</th>
-                <th>Marks</th>
-                <th>Semester</th>
               </tr>
             </thead>
             <tbody>
@@ -215,11 +245,10 @@
         studentsInGroup.forEach(student => {
           tableHTML += `
             <tr>
+              <td>
+                <img src="${student.avatarUrl || 'https://via.placeholder.com/50'}" alt="Avatar" class="avatar-preview">
+              </td>
               <td>${student.name}</td>
-              <td>${student.grade}</td>
-              <td>${student.attendance}</td>
-              <td>${student.marks}</td>
-              <td>${student.semester}</td>
             </tr>
           `;
         });
@@ -257,7 +286,14 @@
         await updateDoc(groupRef, {
           students: arrayUnion(studentId)
         });
+
+        // Update the student's group field
+        await updateDoc(doc(db, 'students', studentId), {
+          group: groupName
+        });
+
         alert('Student added to group successfully!');
+        fetchAllStudents(); // Refresh the students list
         fetchAllGroups(); // Refresh the groups list
       } catch (error) {
         console.error('Error adding student to group: ', error);
@@ -275,7 +311,14 @@
         await updateDoc(groupRef, {
           students: arrayRemove(studentId)
         });
+
+        // Remove the student's group field
+        await updateDoc(doc(db, 'students', studentId), {
+          group: ''
+        });
+
         alert('Student removed from group successfully!');
+        fetchAllStudents(); // Refresh the students list
         fetchAllGroups(); // Refresh the groups list
       } catch (error) {
         console.error('Error removing student from group: ', error);
@@ -283,55 +326,64 @@
       }
     };
 
-    // Function to add a new course field
-    window.addCourse = function () {
-      const coursesDiv = document.getElementById('courses');
-      const newCourse = document.createElement('div');
-      newCourse.className = 'course';
-      newCourse.innerHTML = `
-        <input type="text" class="courseName" placeholder="Course Name" required>
-        <input type="number" class="courseScore" placeholder="Score" required>
-        <input type="number" class="courseGPA" placeholder="GPA" required>
-        <input type="text" class="courseRemark" placeholder="Remark" required>
-      `;
-      coursesDiv.appendChild(newCourse);
+    // Function to delete a student (mark as deleted)
+    window.deleteStudent = async function (studentId) {
+      try {
+        await updateDoc(doc(db, 'students', studentId), {
+          deletedAt: new Date() // Set the deletion timestamp
+        });
+        alert('Student marked for deletion. You have 24 hours to restore.');
+        fetchAllStudents(); // Refresh the students list
+      } catch (error) {
+        console.error('Error deleting student: ', error);
+        alert('Error deleting student. Please try again.');
+      }
     };
+
+    // Function to restore a student
+    window.restoreStudent = async function (studentId) {
+      try {
+        await updateDoc(doc(db, 'students', studentId), {
+          deletedAt: null // Remove the deletion timestamp
+        });
+        alert('Student restored successfully!');
+        fetchAllStudents(); // Refresh the students list
+      } catch (error) {
+        console.error('Error restoring student: ', error);
+        alert('Error restoring student. Please try again.');
+      }
+    };
+
+    // Automatically upload avatar when a file is selected
+    const avatarInput = document.getElementById('avatar');
+    avatarInput.addEventListener('change', async (e) => {
+      const avatarFile = e.target.files[0];
+      if (!avatarFile) return;
+
+      try {
+        const avatarRef = storageRef(storage, `avatars/${Date.now()}_${avatarFile.name}`);
+        await uploadBytes(avatarRef, avatarFile);
+        avatarUrl = await getDownloadURL(avatarRef);
+        alert('Avatar uploaded successfully!');
+      } catch (error) {
+        console.error('Error uploading avatar: ', error);
+        alert('Error uploading avatar. Please try again.');
+      }
+    });
 
     // Submit student data
     const studentForm = document.getElementById('studentForm');
     studentForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
+      e.preventDefault(); // Prevent the default form submission
 
       const name = document.getElementById('name').value;
-      const grade = document.getElementById('grade').value;
-      const attendance = document.getElementById('attendance').value;
-      const marks = document.getElementById('marks').value;
-      const semester = document.getElementById('semester').value;
-
-      // Get course data
-      const courses = [];
-      const courseDivs = document.querySelectorAll('.course');
-      courseDivs.forEach(courseDiv => {
-        const courseName = courseDiv.querySelector('.courseName').value;
-        const courseScore = courseDiv.querySelector('.courseScore').value;
-        const courseGPA = courseDiv.querySelector('.courseGPA').value;
-        const courseRemark = courseDiv.querySelector('.courseRemark').value;
-        courses.push({
-          name: courseName,
-          score: parseFloat(courseScore),
-          gpa: parseFloat(courseGPA),
-          remark: courseRemark
-        });
-      });
+      const groupName = document.getElementById('groupSelect').value;
 
       // Student data object
       const studentData = {
         name,
-        grade,
-        attendance: parseFloat(attendance),
-        marks: parseFloat(marks),
-        semester,
-        courses
+        group: groupName || '',
+        avatarUrl
       };
 
       try {
@@ -345,11 +397,15 @@
           alert('Student data added with ID: ' + docRef.id);
         }
         studentForm.reset(); // Clear the form
+        fetchAllStudents(); // Refresh the students list
       } catch (error) {
         console.error('Error adding/updating student: ', error);
         alert('Error adding/updating student. Please try again.');
       }
     });
+
+    // Fetch groups when the page loads
+    fetchAllGroups();
   </script>
 </body>
 </html>
