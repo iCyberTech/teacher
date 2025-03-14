@@ -80,6 +80,11 @@
   <h2>Add/Update Student Data</h2>
   <form id="studentForm">
     <input type="text" id="name" placeholder="Student Name" required>
+    <select id="gender">
+      <option value="">Select Gender</option>
+      <option value="Male">Male</option>
+      <option value="Female">Female</option>
+    </select>
     <input type="file" id="avatar" accept="image/*">
     <select id="groupSelect">
       <option value="">Select Group</option>
@@ -129,6 +134,7 @@
               <tr>
                 <th>Avatar</th>
                 <th>Name</th>
+                <th>Gender</th>
                 <th>Group</th>
                 <th>Action</th>
               </tr>
@@ -146,6 +152,7 @@
                 <img src="${studentData.avatarUrl || 'https://via.placeholder.com/50'}" alt="Avatar" class="avatar-preview">
               </td>
               <td>${studentData.name}</td>
+              <td>${studentData.gender || 'Not Specified'}</td>
               <td>${studentData.group || 'No Group'}</td>
               <td>
                 ${isDeleted ? `
@@ -246,6 +253,7 @@
               <tr>
                 <th>Avatar</th>
                 <th>Name</th>
+                <th>Gender</th>
               </tr>
             </thead>
             <tbody>
@@ -258,6 +266,7 @@
                 <img src="${student.avatarUrl || 'https://via.placeholder.com/50'}" alt="Avatar" class="avatar-preview">
               </td>
               <td>${student.name}</td>
+              <td>${student.gender || 'Not Specified'}</td>
             </tr>
           `;
         });
@@ -436,6 +445,7 @@
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Gender</th>
                 <th>Amount Paid</th>
                 <th>Last Payment Date</th>
                 <th>Debt</th>
@@ -449,6 +459,7 @@
           tableHTML += `
             <tr>
               <td>${student.name}</td>
+              <td>${student.gender || 'Not Specified'}</td>
               <td><input type="number" id="amountPaid_${student.id}" value="${student.fees.amountPaid}"></td>
               <td><input type="date" id="lastPaymentDate_${student.id}" value="${student.fees.lastPaymentDate}"></td>
               <td><input type="number" id="debt_${student.id}" value="${student.fees.debt}"></td>
@@ -537,11 +548,13 @@
       e.preventDefault(); // Prevent the default form submission
 
       const name = document.getElementById('name').value;
+      const gender = document.getElementById('gender').value;
       const groupName = document.getElementById('groupSelect').value;
 
       // Student data object
       const studentData = {
         name,
+        gender, // Include gender in the student data
         group: groupName || '',
         avatarUrl
       };
